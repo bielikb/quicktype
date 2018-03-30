@@ -12,7 +12,14 @@ import {
     UnionType
 } from "./Type";
 import { defined, assert, panic } from "./Support";
-import { GraphRewriteBuilder, TypeRef, TypeBuilder, StringTypeMapping, NoStringTypeMapping, provenanceTypeAttributeKind } from "./TypeBuilder";
+import {
+    GraphRewriteBuilder,
+    TypeRef,
+    TypeBuilder,
+    StringTypeMapping,
+    NoStringTypeMapping,
+    provenanceTypeAttributeKind
+} from "./TypeBuilder";
 import { TypeNames, namesTypeAttributeKind } from "./TypeNames";
 import { Graph } from "./Graph";
 import { TypeAttributeKind, TypeAttributes } from "./TypeAttributes";
@@ -20,7 +27,7 @@ import { TypeAttributeKind, TypeAttributes } from "./TypeAttributes";
 export class TypeAttributeStore {
     private _topLevelValues: Map<string, TypeAttributes> = Map();
 
-    constructor(private readonly _typeGraph: TypeGraph, private _values: (TypeAttributes | undefined)[]) { }
+    constructor(private readonly _typeGraph: TypeGraph, private _values: (TypeAttributes | undefined)[]) {}
 
     private getTypeIndex(t: Type): number {
         const tref = t.typeRef;
@@ -81,8 +88,7 @@ export class TypeAttributeStoreView<T> {
     constructor(
         private readonly _attributeStore: TypeAttributeStore,
         private readonly _definition: TypeAttributeKind<T>
-    ) {
-    }
+    ) {}
 
     set(t: Type, value: T): void {
         this._attributeStore.set(this._definition, t, value);
@@ -209,11 +215,14 @@ export class TypeGraph {
         assert(this._haveProvenanceAttributes);
 
         const view = new TypeAttributeStoreView(this.attributeStore, provenanceTypeAttributeKind);
-        return this.allTypesUnordered().toList().map(t => {
-            const maybeSet = view.tryGet(t);
-            if (maybeSet !== undefined) return maybeSet;
-            return Set();
-        }).reduce<Set<TypeRef>>((a, b) => a.union(b));
+        return this.allTypesUnordered()
+            .toList()
+            .map(t => {
+                const maybeSet = view.tryGet(t);
+                if (maybeSet !== undefined) return maybeSet;
+                return Set();
+            })
+            .reduce<Set<TypeRef>>((a, b) => a.union(b));
     }
 
     setPrintOnRewrite(): void {
@@ -231,6 +240,7 @@ export class TypeGraph {
         stringTypeMapping: StringTypeMapping,
         alphabetizeProperties: boolean,
         replacementGroups: T[][],
+        debugPrintReconstitution: boolean,
         replacer: (typesToReplace: Set<T>, builder: GraphRewriteBuilder<T>, forwardingRef: TypeRef) => TypeRef,
         force: boolean = false
     ): TypeGraph {
@@ -246,6 +256,7 @@ export class TypeGraph {
             alphabetizeProperties,
             this._haveProvenanceAttributes,
             replacementGroups,
+            debugPrintReconstitution,
             replacer
         );
         const newGraph = builder.finish();
@@ -269,8 +280,15 @@ export class TypeGraph {
     }
 
     garbageCollect(alphabetizeProperties: boolean): TypeGraph {
-        const newGraph = this.rewrite("GC", NoStringTypeMapping, alphabetizeProperties, [], (_t, _b) =>
-            panic("This shouldn't be called"), true);
+        const newGraph = this.rewrite(
+            "GC",
+            NoStringTypeMapping,
+            alphabetizeProperties,
+            [],
+            false,
+            (_t, _b) => panic("This shouldn't be called"),
+            true
+        );
         // console.log(`GC: ${defined(newGraph._types).length} types`);
         return newGraph;
     }
@@ -320,20 +338,35 @@ export class TypeGraph {
     }
 }
 
-export function noneToAny(graph: TypeGraph, stringTypeMapping: StringTypeMapping): TypeGraph {
+export function noneToAny(
+    graph: TypeGraph,
+    stringTypeMapping: StringTypeMapping,
+    debugPrintReconstitution: boolean
+): TypeGraph {
     const noneTypes = graph.allTypesUnordered().filter(t => t.kind === "none");
     if (noneTypes.size === 0) {
         return graph;
     }
     assert(noneTypes.size === 1, "Cannot have more than one none type");
-    return graph.rewrite("none to any", stringTypeMapping, false, [noneTypes.toArray()], (_, builder, forwardingRef) => {
-        return builder.getPrimitiveType("any", forwardingRef);
-    });
+    return graph.rewrite(
+        "none to any",
+        stringTypeMapping,
+        false,
+        [noneTypes.toArray()],
+        debugPrintReconstitution,
+        (_, builder, forwardingRef) => {
+            return builder.getPrimitiveType("any", forwardingRef);
+        }
+    );
 }
 
-export function optionalToNullable(graph: TypeGraph, stringTypeMapping: StringTypeMapping): TypeGraph {
+export function optionalToNullable(
+    graph: TypeGraph,
+    stringTypeMapping: StringTypeMapping,
+    debugPrintReconstitution: boolean
+): TypeGraph {
     function rewriteClass(c: ClassType, builder: GraphRewriteBuilder<ClassType>, forwardingRef: TypeRef): TypeRef {
-        const properties = c.properties.map((p, name) => {
+        const properties = c.getProperties().map((p, name) => {
             const t = p.type;
             let ref: TypeRef;
             if (!p.isOptional || t.isNullable) {
@@ -363,14 +396,21 @@ export function optionalToNullable(graph: TypeGraph, stringTypeMapping: StringTy
 
     const classesWithOptional = graph
         .allTypesUnordered()
-        .filter(t => t instanceof ClassType && t.properties.some(p => p.isOptional));
+        .filter(t => t instanceof ClassType && t.getProperties().some(p => p.isOptional));
     const replacementGroups = classesWithOptional.map(c => [c as ClassType]).toArray();
     if (classesWithOptional.size === 0) {
         return graph;
     }
-    return graph.rewrite("optional to nullable", stringTypeMapping, false, replacementGroups, (setOfClass, builder, forwardingRef) => {
-        assert(setOfClass.size === 1);
-        const c = defined(setOfClass.first());
-        return rewriteClass(c, builder, forwardingRef);
-    });
+    return graph.rewrite(
+        "optional to nullable",
+        stringTypeMapping,
+        false,
+        replacementGroups,
+        debugPrintReconstitution,
+        (setOfClass, builder, forwardingRef) => {
+            assert(setOfClass.size === 1);
+            const c = defined(setOfClass.first());
+            return rewriteClass(c, builder, forwardingRef);
+        }
+    );
 }

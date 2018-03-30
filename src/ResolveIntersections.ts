@@ -168,28 +168,41 @@ class IntersectionAccumulator
         }
 
         this._objectAttributes = combineTypeAttributes(this._objectAttributes, maybeObject.getAttributes());
+        const objectAdditionalProperties = maybeObject.getAdditionalProperties();
 
         if (this._objectProperties === undefined) {
             assert(this._additionalPropertyTypes === undefined);
             return;
         }
 
-        const allPropertyNames = this._objectProperties.keySeq().toOrderedSet().union(maybeObject.properties.keySeq());
+        const allPropertyNames = this._objectProperties
+            .keySeq()
+            .toOrderedSet()
+            .union(maybeObject.getProperties().keySeq());
         allPropertyNames.forEach(name => {
             const existing = defined(this._objectProperties).get(name);
-            const newProperty = maybeObject.properties.get(name);
+            const newProperty = maybeObject.getProperties().get(name);
 
             if (existing !== undefined && newProperty !== undefined) {
-                const cp = new GenericClassProperty(existing.typeData.add(newProperty.type), existing.isOptional || newProperty.isOptional);
+                const cp = new GenericClassProperty(
+                    existing.typeData.add(newProperty.type),
+                    existing.isOptional || newProperty.isOptional
+                );
                 this._objectProperties = defined(this._objectProperties).set(name, cp);
-            } else if (existing !== undefined && maybeObject.additionalProperties !== undefined) {
-                const cp = new GenericClassProperty(existing.typeData.add(maybeObject.additionalProperties), existing.isOptional);
+            } else if (existing !== undefined && objectAdditionalProperties !== undefined) {
+                const cp = new GenericClassProperty(
+                    existing.typeData.add(objectAdditionalProperties),
+                    existing.isOptional
+                );
                 this._objectProperties = defined(this._objectProperties).set(name, cp);
             } else if (existing !== undefined) {
-                this._objectProperties = defined(this._objectProperties).remove(name);                
+                this._objectProperties = defined(this._objectProperties).remove(name);
             } else if (newProperty !== undefined && this._additionalPropertyTypes !== undefined) {
                 const types = this._additionalPropertyTypes.add(newProperty.type);
-                this._objectProperties = defined(this._objectProperties).set(name, new GenericClassProperty(types, newProperty.isOptional));
+                this._objectProperties = defined(this._objectProperties).set(
+                    name,
+                    new GenericClassProperty(types, newProperty.isOptional)
+                );
             } else if (newProperty !== undefined) {
                 this._objectProperties = defined(this._objectProperties).remove(name);
             } else {
@@ -197,9 +210,9 @@ class IntersectionAccumulator
             }
         });
 
-        if (this._additionalPropertyTypes !== undefined && maybeObject.additionalProperties) {
-            this._additionalPropertyTypes = this._additionalPropertyTypes.add(maybeObject.additionalProperties);
-        } else if (this._additionalPropertyTypes !== undefined || maybeObject.additionalProperties) {
+        if (this._additionalPropertyTypes !== undefined && objectAdditionalProperties !== undefined) {
+            this._additionalPropertyTypes = this._additionalPropertyTypes.add(objectAdditionalProperties);
+        } else if (this._additionalPropertyTypes !== undefined || objectAdditionalProperties !== undefined) {
             this._additionalPropertyTypes = undefined;
             this._lostTypeAttributes = true;
         }
@@ -392,7 +405,11 @@ class IntersectionUnionBuilder extends UnionBuilder<
     }
 }
 
-export function resolveIntersections(graph: TypeGraph, stringTypeMapping: StringTypeMapping): [TypeGraph, boolean] {
+export function resolveIntersections(
+    graph: TypeGraph,
+    stringTypeMapping: StringTypeMapping,
+    debugPrintReconstitution: boolean
+): [TypeGraph, boolean] {
     let needsRepeat = false;
 
     function replace(types: Set<Type>, builder: GraphRewriteBuilder<Type>, forwardingRef: TypeRef): TypeRef {
@@ -429,7 +446,7 @@ export function resolveIntersections(graph: TypeGraph, stringTypeMapping: String
     >;
     const resolvableIntersections = allIntersections.filter(canResolve);
     const groups = makeGroupsToFlatten(resolvableIntersections, undefined);
-    graph = graph.rewrite("resolve intersections", stringTypeMapping, false, groups, replace);
+    graph = graph.rewrite("resolve intersections", stringTypeMapping, false, groups, debugPrintReconstitution, replace);
 
     // console.log(`resolved ${resolvableIntersections.size} of ${intersections.size} intersections`);
     return [graph, !needsRepeat && allIntersections.size === resolvableIntersections.size];

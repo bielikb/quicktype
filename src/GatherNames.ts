@@ -60,7 +60,7 @@ export function gatherNames(graph: TypeGraph): void {
                 processType(arrayType.items, names.map(pluralize.singular), parentNames, "element");
             },
             classType => {
-                const properties = classType.properties.sortBy((_, n) => n);
+                const properties = classType.getProperties().sortBy((_, n) => n);
                 properties.forEach((property, propertyName) => {
                     processType(property.type, OrderedSet([propertyName]), names);
                 });

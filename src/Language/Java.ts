@@ -360,7 +360,7 @@ export class JavaRenderer extends ConvenienceRenderer {
     }
 
     protected emitClassAttributes(c: ClassType, _className: Name): void {
-        if (c.properties.isEmpty() && !this._justTypes) {
+        if (c.getProperties().isEmpty() && !this._justTypes) {
             this.emitLine("@JsonAutoDetect(fieldVisibility=JsonAutoDetect.Visibility.NONE)");
         }
     }

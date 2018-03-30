@@ -138,7 +138,7 @@ export class JSONSchemaRenderer extends ConvenienceRenderer {
     private definitionForClass(c: ClassType, title: string): Schema {
         const properties: Schema = {};
         const required: string[] = [];
-        c.properties.forEach((p, name) => {
+        c.getProperties().forEach((p, name) => {
             properties[name] = this.schemaForType(p.type);
             if (!p.isOptional) {
                 required.push(name);

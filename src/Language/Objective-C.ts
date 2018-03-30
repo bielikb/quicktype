@@ -282,7 +282,7 @@ export class ObjectiveCRenderer extends ConvenienceRenderer {
             return (
                 (t instanceof ArrayType && t.items.equals(enumType)) ||
                 (t instanceof MapType && t.values.equals(enumType)) ||
-                (t instanceof ClassType && t.properties.some(p => containedBy(p.type))) ||
+                (t instanceof ClassType && t.getProperties().some(p => containedBy(p.type))) ||
                 // TODO support unions
                 (t instanceof UnionType && false)
             );
@@ -696,7 +696,7 @@ export class ObjectiveCRenderer extends ConvenienceRenderer {
         });
 
         if (!this._justTypes && isTopLevel) {
-            if (t.properties.count() > 0) this.ensureBlankLine();
+            if (!t.getProperties().isEmpty()) this.ensureBlankLine();
 
             this.emitLine(
                 "+ (_Nullable instancetype)fromJSON:(NSString *)json encoding:(NSStringEncoding)encoding error:(NSError *_Nullable *)error;"
@@ -1076,7 +1076,7 @@ export class ObjectiveCRenderer extends ConvenienceRenderer {
             return (
                 t instanceof MapType ||
                 t instanceof ArrayType ||
-                (t instanceof ClassType && t.properties.some(p => needsMap(p.type)))
+                (t instanceof ClassType && t.getProperties().some(p => needsMap(p.type)))
             );
         }
         return this.typeGraph.allTypesUnordered().some(needsMap);

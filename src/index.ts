@@ -100,6 +100,7 @@ export interface Options {
     outputFilename: string;
     schemaStore: JSONSchemaStore | undefined;
     debugPrintGraph: boolean | undefined;
+    debugPrintReconstitution: boolean | undefined;
 }
 
 const defaultOptions: Options = {
@@ -120,7 +121,8 @@ const defaultOptions: Options = {
     indentation: undefined,
     outputFilename: "stdout",
     schemaStore: undefined,
-    debugPrintGraph: false
+    debugPrintGraph: false,
+    debugPrintReconstitution: false
 };
 
 type InputData = {
@@ -233,16 +235,28 @@ export class Run {
             graph.printGraph();
         }
 
+        const debugPrintReconstitution = this._options.debugPrintReconstitution === true;
+
         let unionsDone = false;
         if (haveSchemas) {
             let intersectionsDone = false;
             do {
                 const graphBeforeRewrites = graph;
                 if (!intersectionsDone) {
-                    [graph, intersectionsDone] = resolveIntersections(graph, stringTypeMapping);
+                    [graph, intersectionsDone] = resolveIntersections(
+                        graph,
+                        stringTypeMapping,
+                        debugPrintReconstitution
+                    );
                 }
                 if (!unionsDone) {
-                    [graph, unionsDone] = flattenUnions(graph, stringTypeMapping, conflateNumbers, true);
+                    [graph, unionsDone] = flattenUnions(
+                        graph,
+                        stringTypeMapping,
+                        conflateNumbers,
+                        true,
+                        debugPrintReconstitution
+                    );
                 }
 
                 if (graph === graphBeforeRewrites) {
@@ -251,9 +265,15 @@ export class Run {
             } while (!intersectionsDone || !unionsDone);
         }
 
-        graph = replaceObjectType(graph, stringTypeMapping, conflateNumbers);
+        graph = replaceObjectType(graph, stringTypeMapping, conflateNumbers, debugPrintReconstitution);
         do {
-            [graph, unionsDone] = flattenUnions(graph, stringTypeMapping, conflateNumbers, false);
+            [graph, unionsDone] = flattenUnions(
+                graph,
+                stringTypeMapping,
+                conflateNumbers,
+                false,
+                debugPrintReconstitution
+            );
         } while (!unionsDone);
 
         if (this._options.findSimilarClassesSchemaURI !== undefined) {
@@ -261,18 +281,24 @@ export class Run {
         }
 
         if (this._options.combineClasses) {
-            graph = combineClasses(graph, stringTypeMapping, this._options.alphabetizeProperties, conflateNumbers);
+            graph = combineClasses(
+                graph,
+                stringTypeMapping,
+                this._options.alphabetizeProperties,
+                conflateNumbers,
+                debugPrintReconstitution
+            );
         }
         if (doInferEnums) {
-            graph = inferEnums(graph, stringTypeMapping);
+            graph = inferEnums(graph, stringTypeMapping, debugPrintReconstitution);
         }
-        graph = flattenStrings(graph, stringTypeMapping);
+        graph = flattenStrings(graph, stringTypeMapping, debugPrintReconstitution);
         if (this._options.inferMaps) {
-            graph = inferMaps(graph, stringTypeMapping, conflateNumbers);
+            graph = inferMaps(graph, stringTypeMapping, conflateNumbers, debugPrintReconstitution);
         }
-        graph = noneToAny(graph, stringTypeMapping);
+        graph = noneToAny(graph, stringTypeMapping, debugPrintReconstitution);
         if (!targetLanguage.supportsOptionalClassProperties) {
-            graph = optionalToNullable(graph, stringTypeMapping);
+            graph = optionalToNullable(graph, stringTypeMapping, debugPrintReconstitution);
         }
         // Sometimes we combine classes in ways that will the order come out
         // differently compared to what it would be from the equivalent schema,
