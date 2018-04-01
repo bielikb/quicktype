@@ -52,7 +52,7 @@ export const CSharpLanguage: Language = {
   skipSchema: [
     "top-level-enum.schema" // The code we generate for top-level enums is incompatible with the driver
   ],
-  rendererOptions: {},
+  rendererOptions: { "check-required": "true" },
   quickTestRendererOptions: [{ "array-type": "list" }, { "csharp-version": "5" }, { density: "dense" }],
   sourceFiles: ["src/Language/CSharp.ts"]
 };
